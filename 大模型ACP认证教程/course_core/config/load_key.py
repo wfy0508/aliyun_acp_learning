@@ -4,13 +4,29 @@ import requests
 from pathlib import Path
 import nltk
 
+def _get_nltk_base_dir():
+    """
+    选择一个可写的 NLTK 资源根目录。
+    云端环境（如阿里云 PAI/DSW）使用 /mnt/workspace/llm_learn/nltk_data；
+    本地环境（如 macOS/Linux 本机）该路径不存在或只读，回退到 ~/llm_learn/nltk_data。
+    """
+    cloud_dir = Path("/mnt/workspace/llm_learn/nltk_data")
+    try:
+        cloud_dir.mkdir(parents=True, exist_ok=True)
+        return cloud_dir
+    except OSError:
+        local_dir = Path.home() / "llm_learn" / "nltk_data"
+        local_dir.mkdir(parents=True, exist_ok=True)
+        return local_dir
+
+
 def load_nltk():
     """
     检查并加载 NLTK 离线资源。
     核心逻辑：将资源解压到 LlamaIndex 强制要求的 _static/nltk_cache 子目录下。
     """
-    # 1. 基础根目录
-    base_dir = Path("/mnt/workspace/llm_learn/nltk_data")
+    # 1. 基础根目录（云端不可写时自动回退到用户主目录）
+    base_dir = _get_nltk_base_dir()
     
     # 2. 【关键】LlamaIndex 真正搜索的物理深层目录
     # 如果不解压到这里，它就会报 LookupError
