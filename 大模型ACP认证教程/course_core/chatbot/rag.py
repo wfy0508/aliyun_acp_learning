@@ -1,12 +1,24 @@
 # 导入依赖
-from llama_index.core import SimpleDirectoryReader,VectorStoreIndex,StorageContext,load_index_from_storage
-from llama_index.embeddings.dashscope import DashScopeEmbedding,DashScopeTextEmbeddingModels
-from llama_index.llms.dashscope import DashScope
 # 这两行代码是用于消除 WARNING 警告信息，避免干扰阅读学习，生产环境中建议根据需要来设置日志级别
 import logging
+
+from llama_index.core import (
+    SimpleDirectoryReader,
+    StorageContext,
+    VectorStoreIndex,
+    load_index_from_storage,
+)
+from llama_index.embeddings.dashscope import (
+    DashScopeEmbedding,
+    DashScopeTextEmbeddingModels,
+)
+from llama_index.llms.dashscope import DashScope
+
 logging.basicConfig(level=logging.ERROR)
-from llama_index.llms.openai_like import OpenAILike
 import os
+
+from llama_index.llms.openai_like import OpenAILike
+
 
 def indexing(document_path="./docs", persist_path="knowledge_base/test"):
     """
@@ -17,6 +29,7 @@ def indexing(document_path="./docs", persist_path="knowledge_base/test"):
     index = create_index(document_path)
     # 持久化索引，将索引保存为本地文件
     index.storage_context.persist(persist_path)
+
 
 def create_index(document_path="./docs"):
     """
@@ -33,9 +46,10 @@ def create_index(document_path="./docs"):
         embed_model=DashScopeEmbedding(
             # 你也可以使用阿里云提供的其它embedding模型：https://help.aliyun.com/zh/model-studio/getting-started/models#3383780daf8hw
             model_name=DashScopeTextEmbeddingModels.TEXT_EMBEDDING_V2
-        )
+        ),
     )
     return index
+
 
 def load_index(persist_path="knowledge_base/test"):
     """
@@ -46,9 +60,13 @@ def load_index(persist_path="knowledge_base/test"):
       VectorStoreIndex: 索引对象
     """
     storage_context = StorageContext.from_defaults(persist_dir=persist_path)
-    return load_index_from_storage(storage_context,embed_model=DashScopeEmbedding(
-      model_name=DashScopeTextEmbeddingModels.TEXT_EMBEDDING_V2
-    ))
+    return load_index_from_storage(
+        storage_context,
+        embed_model=DashScopeEmbedding(
+            model_name=DashScopeTextEmbeddingModels.TEXT_EMBEDDING_V2
+        ),
+    )
+
 
 def create_query_engine(index):
     """
@@ -58,18 +76,20 @@ def create_query_engine(index):
     返回
       QueryEngine: 查询引擎对象
     """
-    
+
     query_engine = index.as_query_engine(
-      # 设置为流式输出
-      streaming=True,
-      # 此处使用qwen-plus模型，你也可以使用阿里云提供的其它qwen的文本生成模型：https://help.aliyun.com/zh/model-studio/getting-started/models#9f8890ce29g5u
-      llm=OpenAILike(
-          model="qwen-plus",
-          api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
-          api_key=os.getenv("DASHSCOPE_API_KEY"),
-          is_chat_model=True
-          ))
+        # 设置为流式输出
+        streaming=True,
+        # 此处使用qwen-plus模型，你也可以使用阿里云提供的其它qwen的文本生成模型：https://help.aliyun.com/zh/model-studio/getting-started/models#9f8890ce29g5u
+        llm=OpenAILike(
+            model="qwen-plus",
+            api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            is_chat_model=True,
+        ),
+    )
     return query_engine
+
 
 def ask(question, query_engine):
     """
@@ -80,15 +100,18 @@ def ask(question, query_engine):
     返回
       str: 回答
     """
-    streaming_response = query_engine.query(question)
-    streaming_response.print_response_stream()
-
+    response = query_engine.query(question)
+    response.print_response_stream()
+    _append_to_history(question, response)
+    return response
 
 
 from llama_index.core import PromptTemplate
+
+
 def update_prompt_template(
-        query_engine,
-        qa_prompt_tmpl_str = (
+    query_engine,
+    qa_prompt_tmpl_str=(
         "你叫公司小蜜，是公司的答疑机器人。你需要仔细阅读参考信息，然后回答大家提出的问题。"
         "注意事项：\n"
         "1. 根据上下文信息而非先验知识来回答问题。\n"
@@ -100,7 +123,8 @@ def update_prompt_template(
         "---------------------\n"
         "问题：{query_str}\n。"
         "回答："
-    )):
+    ),
+):
     """
     修改prompt模板
     输入是prompt修改前的query_engine，以及提示词模板；输出是prompt修改后的query_engine
@@ -112,3 +136,7 @@ def update_prompt_template(
     )
     # print("提示词模板修改成功")
     return query_engine
+
+
+# === 对话历史导出功能 ===
+from course_core.chatbot.export import export_history, _append_to_history, _history  # noqa: F401
